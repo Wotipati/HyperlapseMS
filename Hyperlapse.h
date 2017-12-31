@@ -27,11 +27,9 @@ public:
     
 private:
     void calcFrameMatchingCost();
-    float costFunction(cv::BFMatcher& matcher,
+    float costFunction(std::vector<cv::DMatch>& matches,
                        std::vector<cv::KeyPoint>& keyPointsI,
-                       std::vector<cv::KeyPoint>& keyPointsJ,
-                       std::vector<cv::Mat> descriptorsI,
-                       std::vector<cv::Mat> descriptorsJ);
+                       std::vector<cv::KeyPoint>& keyPointsJ);
     float reprojectionError(std::vector<cv::Point2f>& keyPointsI,
                             std::vector<cv::Point2f>& keyPointsJ,
                             cv::Mat& homography);

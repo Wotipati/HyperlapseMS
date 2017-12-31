@@ -20,6 +20,7 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
     }
     
     totalFrameCount_ = inputVideo_.get(CV_CAP_PROP_FRAME_COUNT);
+    //totalFrameCount_ = 100;
     
     frameWidth_ = inputVideo_.get(CV_CAP_PROP_FRAME_WIDTH);
     frameHeight_ = inputVideo_.get(CV_CAP_PROP_FRAME_HEIGHT);
@@ -31,8 +32,12 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
 
 void Hyperlapse::generateHypelapse(){
     calcFrameMatchingCost();
+    
     pathSelection();
+    
     stabilizeFrames();
+    
+    writeHyperlapse();
 }
 
 
@@ -59,11 +64,11 @@ void Hyperlapse::calcFrameMatchingCost(){
         if (ti>=1){
             cv::BFMatcher matcher(cv::NORM_HAMMING);
             for (int tj = ti+1; tj <= std::min(ti+window_, totalFrameCount_); tj++){
-                Cm_.at<float>(ti, tj) = costFunction(matcher,
+                std::vector<cv::DMatch> matches;
+                matcher.match(descriptors[0], descriptors[tj-ti-1], matches);
+                Cm_.at<float>(ti, tj) = costFunction(matches,
                                                      keyPoints[ti-1],
-                                                     keyPoints[tj-1],
-                                                     descriptors[0],
-                                                     descriptors[tj-ti-1]);
+                                                     keyPoints[tj-1]);
             }
             descriptors[0].release();
             descriptors.erase(descriptors.begin());
@@ -72,13 +77,9 @@ void Hyperlapse::calcFrameMatchingCost(){
 }
 
 
-float Hyperlapse::costFunction(cv::BFMatcher& matcher,
+float Hyperlapse::costFunction(std::vector<cv::DMatch>& matches,
                                std::vector<cv::KeyPoint>& keyPointsI,
-                               std::vector<cv::KeyPoint>& keyPointsJ,
-                               std::vector<cv::Mat> descriptorsI,
-                               std::vector<cv::Mat> descriptorsJ){
-    std::vector<cv::DMatch> matches;
-    matcher.match(descriptorsI, descriptorsJ, matches);
+                               std::vector<cv::KeyPoint>& keyPointsJ){
     
     double minDist = DBL_MAX;
     for (int i=0; i<(int)matches.size(); i++){
@@ -189,7 +190,7 @@ void Hyperlapse::populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv){
                 }
             }
             Dv.at<float>(fi, fj) = c + minK;
-            Tv.at<float>(fi, fj) = fi - argminK;
+            Tv.at<int>(fi, fj) = fi - argminK;
         }
     }
 }
@@ -201,6 +202,7 @@ void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
     int s = 0;
     int d = 0;
     float minD = FLT_MAX;
+    std::vector<int> optimalPath;
     for (int fi=totalFrameCount_-gap_; fi<=totalFrameCount_; fi++){
         for (int fj=fi+1; fj <= std::min(fi+window_, totalFrameCount_); fj++){
             float value = Dv.at<float>(fi, fj);
@@ -211,17 +213,14 @@ void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
             }
         }
     }
-    
-    std::vector<int> optimalPath;
     optimalPath.push_back(d);
-    
     while(s>gap_){
         optimalPath.insert(optimalPath.begin(), s);
-        int b = Tv.at<int>(s,d);
+        int b = Tv.at<int>(s, d);
         d = s;
         s = b;
     }
-    
+
     for(int index:optimalPath){
         optimalFrames.push_back(inputFrames[index]);
     }
