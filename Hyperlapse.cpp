@@ -13,17 +13,16 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
     inputVideoPath_ = inputVideoPath;
     outputVideoPath_ = outputVideoPath;
     
-    cv::VideoCapture inputVideo_(inputVideoPath_);
-    if (!inputVideo_.isOpened()){
+    cv::VideoCapture inputVideo(inputVideoPath_);
+    if (!inputVideo.isOpened()){
         std::cout << "ERROR: Failed to open movie" << std::endl;
         exit(0);
     }
     
-    totalFrameCount_ = inputVideo_.get(CV_CAP_PROP_FRAME_COUNT);
-    //totalFrameCount_ = 100;
+    totalFrameCount_ = inputVideo.get(CV_CAP_PROP_FRAME_COUNT);
     
-    frameWidth_ = inputVideo_.get(CV_CAP_PROP_FRAME_WIDTH);
-    frameHeight_ = inputVideo_.get(CV_CAP_PROP_FRAME_HEIGHT);
+    frameWidth_ = inputVideo.get(CV_CAP_PROP_FRAME_WIDTH);
+    frameHeight_ = inputVideo.get(CV_CAP_PROP_FRAME_HEIGHT);
     diagonal_ = (int)sqrt(frameHeight_*frameHeight_ + frameWidth_*frameWidth_);
     tauC_ = 0.1 * diagonal_;
     gamma_ = 0.5 * diagonal_;
@@ -33,11 +32,12 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
 void Hyperlapse::generateHypelapse(){
     calcFrameMatchingCost();
     
+    std::cout << "pathSelection" << std::endl;
     pathSelection();
-    
     stabilizeFrames();
-    
-    writeHyperlapse();
+    std::cout << "writeHyperlapse" << std::endl;
+    //writeHyperlapse();
+    writeSimpleHyperlapse();
 }
 
 
@@ -46,21 +46,21 @@ void Hyperlapse::calcFrameMatchingCost(){
     Cm_ = cv::Mat::zeros(totalFrameCount_+1, totalFrameCount_+1, CV_32F);
     cv::Ptr<cv::Feature2D> detector = cv::ORB::create();
     std::vector<cv::Mat> descriptors;
-    
-    for (int fi=0; fi<totalFrameCount_; fi++){
+    cv::VideoCapture cap(inputVideoPath_);
+    while(inputFrames_.size() < totalFrameCount_){
         cv::Mat frame, frameTransposed;
-        inputVideo_.read(frame);
-        
-        cv::transpose(frame, frameTransposed);
-        inputFrames_.push_back(frameTransposed);
+        cap >> frame;
+
+        inputFrames_.push_back(frame);
         
         cv::Mat descriptor;
         std::vector<cv::KeyPoint> keyPoint;
-        detector->detectAndCompute(frame, cv::noArray(), keyPoint, descriptor);
+        detector->detectAndCompute(frame, cv::Mat(), keyPoint, descriptor);
+
         keyPoints.push_back(keyPoint);
         descriptors.push_back(descriptor);
         
-        int ti = fi+1-window_;
+        int ti = (int)inputFrames_.size() - window_;
         if (ti>=1){
             cv::BFMatcher matcher(cv::NORM_HAMMING);
             for (int tj = ti+1; tj <= std::min(ti+window_, totalFrameCount_); tj++){
@@ -72,6 +72,7 @@ void Hyperlapse::calcFrameMatchingCost(){
             }
             descriptors[0].release();
             descriptors.erase(descriptors.begin());
+            std::cout << ti <<std::endl;
         }
     }
 }
@@ -197,7 +198,7 @@ void Hyperlapse::populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv){
 
 
 void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
-                                      std::vector<cv::Mat> inputFrames,
+                                      std::vector<cv::Mat>& inputFrames,
                                       std::vector<cv::Mat>& optimalFrames){
     int s = 0;
     int d = 0;
@@ -221,8 +222,10 @@ void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
         s = b;
     }
 
+    std::cout<< inputFrames.size()  << std::endl;
     for(int index:optimalPath){
-        optimalFrames.push_back(inputFrames[index]);
+        std::cout << index << std::endl;
+        optimalFrames.push_back(inputFrames[index-1]);
     }
 }
 
@@ -259,18 +262,20 @@ void Hyperlapse::stabilizeFrames(){
 
 
 void Hyperlapse::writeHyperlapse(){
-    cv::VideoWriter output;
     cv::Mat frame;
-    int count = 0;
+    //TODO Fix following code so that you can export video
+    cv::VideoWriter writer("output.mov", CV_FOURCC('a', 'v', 'c', '4'),  30, cv::Size(frameWidth_, frameHeight_), true);
     while (!(frame = stabilizedFrames_->nextFrame()).empty()) {
-        if (!output.isOpened()) {
-            output.open(
-                        outputVideoPath_,
-                        CV_FOURCC('a','v','c','1'),
-                        inputVideo_.get(CV_CAP_PROP_FPS),
-                        frame.size());
-        }
-        output << frame;
-        count++;
+        writer << frame;
+    }
+}
+
+
+void Hyperlapse::writeSimpleHyperlapse(){
+    cv::VideoWriter writer("output.mov", CV_FOURCC('m', 'p', '4', 'v'),  30, cv::Size(frameWidth_, frameHeight_), true);
+    
+    for (int count=0; count<(int)optimalFrames_.size(); count++) {
+        cv::Mat frame = optimalFrames_[count];
+        writer << frame;
     }
 }

@@ -39,16 +39,16 @@ private:
     cv::Mat initialization(cv::Mat Cm);
     void populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv);
     void traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
-                              std::vector<cv::Mat> inputFrames,
+                              std::vector<cv::Mat>& inputFrames,
                               std::vector<cv::Mat>& optimalFrames);
     
     void stabilizeFrames();
     
     void writeHyperlapse();
+    void writeSimpleHyperlapse();
     
     std::string inputVideoPath_;
     std::string outputVideoPath_;
-    cv::VideoCapture inputVideo_;
     std::vector<cv::Mat> inputFrames_;
     cv::Mat Cm_;
     std::vector<cv::Mat> optimalFrames_;
