@@ -71,7 +71,7 @@ private:
     int lambdaS_ = 200;
     int lambdaA_ = 80;
     
-    
+    int punc_;
 };
 
 class VecSource : public cv::videostab::IFrameSource {

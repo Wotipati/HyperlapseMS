@@ -20,6 +20,7 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
     }
     
     totalFrameCount_ = inputVideo.get(CV_CAP_PROP_FRAME_COUNT);
+    punc_ = int(totalFrameCount_/100);
     
     frameWidth_ = inputVideo.get(CV_CAP_PROP_FRAME_WIDTH);
     frameHeight_ = inputVideo.get(CV_CAP_PROP_FRAME_HEIGHT);
@@ -30,12 +31,13 @@ Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
 
 
 void Hyperlapse::generateHypelapse(){
+    std::cout << "Calculate Matching Cost..." << std::endl;
     calcFrameMatchingCost();
     
-    std::cout << "pathSelection" << std::endl;
+    std::cout << "Optimal Frame Selection..." << std::endl;
     pathSelection();
-    stabilizeFrames();
-    std::cout << "writeHyperlapse" << std::endl;
+    //stabilizeFrames();
+    std::cout << "Write Hyperlapse..." << std::endl;
     //writeHyperlapse();
     writeSimpleHyperlapse();
 }
@@ -47,6 +49,8 @@ void Hyperlapse::calcFrameMatchingCost(){
     cv::Ptr<cv::Feature2D> detector = cv::ORB::create();
     std::vector<cv::Mat> descriptors;
     cv::VideoCapture cap(inputVideoPath_);
+    int progressBar = 0;
+    
     while(inputFrames_.size() < totalFrameCount_){
         cv::Mat frame, frameTransposed;
         cap >> frame;
@@ -72,7 +76,10 @@ void Hyperlapse::calcFrameMatchingCost(){
             }
             descriptors[0].release();
             descriptors.erase(descriptors.begin());
-            std::cout << ti <<std::endl;
+            if (ti >= progressBar * punc_){
+                std::cout << progressBar << '%' << std::endl;
+                progressBar += 1;
+            }
         }
     }
 }
@@ -163,7 +170,7 @@ void Hyperlapse::pathSelection(){
 
 cv::Mat Hyperlapse::initialization(cv::Mat Cm){
     cv::Mat Dv = cv::Mat::zeros(totalFrameCount_+1, totalFrameCount_+1, CV_32F);
-    
+    std::cout << "Initialize" << std::endl;
     for (int fi=1; fi<gap_; fi++){
         for (int fj=fi+1; fj<fi+window_; fj++){
             float Cs = std::min(powf((fj-fi)-speedUpRate_, 2), (float) tauS_);
@@ -175,6 +182,9 @@ cv::Mat Hyperlapse::initialization(cv::Mat Cm){
 
 
 void Hyperlapse::populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv){
+    std::cout << "Populate Dv" << std::endl;
+    int progressBar = 0;
+    
     for (int fi=gap_; fi<totalFrameCount_; fi++){
         for (int fj=fi+1; fj<=std::min(fi+window_, totalFrameCount_); fj++){
             float Cs = std::min(powf((fj-fi)-speedUpRate_, 2), (float) tauS_);
@@ -193,6 +203,10 @@ void Hyperlapse::populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv){
             Dv.at<float>(fi, fj) = c + minK;
             Tv.at<int>(fi, fj) = fi - argminK;
         }
+        if (fi >= progressBar * punc_){
+            std::cout << progressBar << '%' << std::endl;
+            progressBar += 1;
+        }
     }
 }
 
@@ -200,6 +214,8 @@ void Hyperlapse::populateDv(cv::Mat Cm, cv::Mat& Dv, cv::Mat& Tv){
 void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
                                       std::vector<cv::Mat>& inputFrames,
                                       std::vector<cv::Mat>& optimalFrames){
+    std::cout << "Trace back minimum cost path" << std::endl;
+    
     int s = 0;
     int d = 0;
     float minD = FLT_MAX;
@@ -222,9 +238,7 @@ void Hyperlapse::traceBackMinCostPath(cv::Mat& Dv, cv::Mat& Tv,
         s = b;
     }
 
-    std::cout<< inputFrames.size()  << std::endl;
     for(int index:optimalPath){
-        std::cout << index << std::endl;
         optimalFrames.push_back(inputFrames[index-1]);
     }
 }
@@ -263,7 +277,7 @@ void Hyperlapse::stabilizeFrames(){
 
 void Hyperlapse::writeHyperlapse(){
     cv::Mat frame;
-    //TODO Fix following code so that you can export video
+    //TODO Fix following code so that you can export stabilized video
     cv::VideoWriter writer("output.mov", CV_FOURCC('a', 'v', 'c', '4'),  30, cv::Size(frameWidth_, frameHeight_), true);
     while (!(frame = stabilizedFrames_->nextFrame()).empty()) {
         writer << frame;
