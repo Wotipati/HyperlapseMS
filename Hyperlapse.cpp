@@ -9,9 +9,10 @@
 #include "Hyperlapse.h"
 
 
-Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath){
+Hyperlapse::Hyperlapse(std::string inputVideoPath, std::string outputVideoPath, int speedUpRate){
     inputVideoPath_ = inputVideoPath;
     outputVideoPath_ = outputVideoPath;
+    speedUpRate_ = speedUpRate;
     
     cv::VideoCapture inputVideo(inputVideoPath_);
     if (!inputVideo.isOpened()){
@@ -278,7 +279,7 @@ void Hyperlapse::stabilizeFrames(){
 void Hyperlapse::writeHyperlapse(){
     cv::Mat frame;
     //TODO Fix following code so that you can export stabilized video
-    cv::VideoWriter writer("output.mov", CV_FOURCC('a', 'v', 'c', '4'),  30, cv::Size(frameWidth_, frameHeight_), true);
+    cv::VideoWriter writer(outputVideoPath_, CV_FOURCC('a', 'v', 'c', '4'),  30, cv::Size(frameWidth_, frameHeight_), true);
     while (!(frame = stabilizedFrames_->nextFrame()).empty()) {
         writer << frame;
     }
@@ -286,7 +287,7 @@ void Hyperlapse::writeHyperlapse(){
 
 
 void Hyperlapse::writeSimpleHyperlapse(){
-    cv::VideoWriter writer("output.mov", CV_FOURCC('m', 'p', '4', 'v'),  30, cv::Size(frameWidth_, frameHeight_), true);
+    cv::VideoWriter writer(outputVideoPath_, CV_FOURCC('m', 'p', '4', 'v'),  30, cv::Size(frameWidth_, frameHeight_), true);
     
     for (int count=0; count<(int)optimalFrames_.size(); count++) {
         cv::Mat frame = optimalFrames_[count];

@@ -22,7 +22,7 @@
 
 class Hyperlapse{
 public:
-    Hyperlapse(std::string inputVideoPath, std::string outputVideoPath);
+    Hyperlapse(std::string inputVideoPath, std::string outputVideoPath, int speedUpRate);
     void generateHypelapse();
     
 private:
@@ -67,7 +67,7 @@ private:
     int window_ = 32;
     int gap_ = 4;
     
-    int speedUpRate_ = 8;
+    int speedUpRate_;
     int lambdaS_ = 200;
     int lambdaA_ = 80;
     
